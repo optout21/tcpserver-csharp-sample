@@ -4,16 +4,16 @@ using System.Net.Sockets;
 
 namespace tcpserver_csharp_sample
 {
-    class NetHandler
+    public class NetHandler
     {
         public NetHandler(IApp app_in)
         {
             myApp = app_in;
         }
 
-        public int startWithListen(int port_in, int tryNextPorts_in)
+        public int StartWithListen(int port_in, int tryNextPorts_in)
         {
-            int actualPort = doListen(port_in, tryNextPorts_in);
+            int actualPort = DoListen(port_in, tryNextPorts_in);
             if (actualPort <= 0)
             {
                 return actualPort;
@@ -21,7 +21,13 @@ namespace tcpserver_csharp_sample
             return actualPort;
         }
 
-        public void doBindAndListen(int port_in)
+        public int Stop()
+        {
+            // TODO
+            return 0;
+        }
+
+        public void DoBindAndListen(int port_in)
         {
             Console.Error.WriteLine($"doBindAndListen trying port {port_in}");
             IPAddress localAddr = IPAddress.Parse("0.0.0.0");
@@ -31,7 +37,7 @@ namespace tcpserver_csharp_sample
             listeningSocket.Listen(10);
         }
 
-        public int doListen(int port_in, int tryNextPorts_in)
+        public int DoListen(int port_in, int tryNextPorts_in)
         {
             int nextPorts = Math.Max(Math.Min(tryNextPorts_in, 10), -1);
             int actualPort = -1;
@@ -39,7 +45,7 @@ namespace tcpserver_csharp_sample
             for (int i = 0; i < nextPorts; ++i)
             {
                 int port = port_in + i;
-                doBindAndListen(port);
+                DoBindAndListen(port);
                 // we are bound and listening
                 //myListenSocket = listenSoc;
                 actualPort = port;

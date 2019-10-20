@@ -3,7 +3,7 @@ using System;
 namespace tcpserver_csharp_sample
 {
     /// Application class interface.
-    interface IApp
+    public interface IApp
     {
         //void start(AppParams const appParams_in);
         /// Called when server is listening on a port already
@@ -13,7 +13,7 @@ namespace tcpserver_csharp_sample
         /// Called when an incoming connection has finished
         void ConnectionClosed(NetClientBase client_in);
         /// Called when an incoming message is received
-        //void messageReceived(NetClientBase & client_in, BaseMessage const & msg_in);
-        //std::string getName();
+        void MessageReceived(NetClientBase client_in, BaseMessage msg_in);
+        string GetName();
     }
 }

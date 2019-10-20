@@ -21,9 +21,9 @@ namespace tcpserver_csharp_sample
             myType = type_in;
         }
 
-        public MessageType getType() { return myType; }
+        public MessageType GetType() { return myType; }
 
-        public virtual void visit(IMessageVisitor visitor_in) { }
+        public virtual void Visit(IMessageVisitor visitor_in) { }
 
         private MessageType myType;
     }
@@ -38,9 +38,9 @@ namespace tcpserver_csharp_sample
             myMyAddr = myAddr_in;
         }
 
-        public void visit(IMessageVisitor visitor_in)
+        public override void Visit(IMessageVisitor visitor_in)
         {
-            visitor_in.handshake(this);
+            visitor_in.Handshake(this);
         }
 
         public override string ToString()
@@ -48,9 +48,9 @@ namespace tcpserver_csharp_sample
             return "HandSh " + myMyVersion + " " + myYourAddr + " " + myMyAddr;
         }
 
-        public string getMyVersion() { return myMyVersion; }
-        public string getYourAddr() { return myYourAddr; }
-        public string getMyAddr() { return myMyAddr; }
+        public string GetMyVersion() { return myMyVersion; }
+        public string GetYourAddr() { return myYourAddr; }
+        public string GetMyAddr() { return myMyAddr; }
 
         protected string myMyVersion;
         protected string myYourAddr;
@@ -67,9 +67,9 @@ namespace tcpserver_csharp_sample
             myYourAddr = yourAddr_in;
         }
 
-        public void visit(IMessageVisitor visitor_in)
+        public override void Visit(IMessageVisitor visitor_in)
         {
-            visitor_in.handshakeResponse(this);
+            visitor_in.HandshakeResponse(this);
         }
 
         public override string ToString()
@@ -77,9 +77,9 @@ namespace tcpserver_csharp_sample
             return "HandShResp " + myMyVersion + " " + myMyAddr + " " + myYourAddr;
         }
 
-        public string getMyVersion() { return myMyVersion; }
-        public string getMyAddr() { return myMyAddr; }
-        public string getYourAddr() { return myYourAddr; }
+        public string GetMyVersion() { return myMyVersion; }
+        public string GetMyAddr() { return myMyAddr; }
+        public string GetYourAddr() { return myYourAddr; }
 
         protected string myMyVersion;
         protected string myYourAddr;
@@ -93,9 +93,9 @@ namespace tcpserver_csharp_sample
             myText = text_in;
         }
 
-        public void visit(IMessageVisitor visitor_in)
+        public override void Visit(IMessageVisitor visitor_in)
         {
-            visitor_in.ping(this);
+            visitor_in.Ping(this);
         }
 
         public override string ToString()
@@ -103,7 +103,7 @@ namespace tcpserver_csharp_sample
             return "Ping " + myText;
         }
 
-        public string getText() { return myText; }
+        public string GetText() { return myText; }
 
         protected string myText;
     }
@@ -115,9 +115,9 @@ namespace tcpserver_csharp_sample
             myText = text_in;
         }
 
-        public void visit(IMessageVisitor  visitor_in)
+        public override void Visit(IMessageVisitor  visitor_in)
         {
-            visitor_in.pingResponse(this);
+            visitor_in.PingResponse(this);
         }
 
         public override string ToString()
@@ -125,7 +125,7 @@ namespace tcpserver_csharp_sample
             return "PingResp " + myText;
         }
 
-        public string getText() { return myText; }
+        public string GetText() { return myText; }
         protected string myText;
     }
 
@@ -137,9 +137,9 @@ namespace tcpserver_csharp_sample
             myPort = port_in;
         }
 
-        public void visit(IMessageVisitor visitor_in)
+        public override void Visit(IMessageVisitor visitor_in)
         {
-            visitor_in.otherPeer(this);
+            visitor_in.OtherPeer(this);
         }
 
         public override string ToString()
@@ -147,8 +147,8 @@ namespace tcpserver_csharp_sample
             return "OtherPeer " + myHost + ":" + myPort.ToString();
         }
 
-        public string getHost() { return myHost; }
-        public int getPort() { return myPort; }
+        public string GetHost() { return myHost; }
+        public int GetPort() { return myPort; }
 
         private string myHost;
         private int myPort;
@@ -156,70 +156,71 @@ namespace tcpserver_csharp_sample
 
     public interface IMessageVisitor
     {
-	    void handshake(HandshakeMessage msg_in);
-	    void handshakeResponse(HandshakeResponseMessage msg_in);
-        void ping(PingMessage msg_in);
-        void pingResponse(PingResponseMessage msg_in);
-        void otherPeer(OtherPeerMessage msg_in);
+	    void Handshake(HandshakeMessage msg_in);
+	    void HandshakeResponse(HandshakeResponseMessage msg_in);
+        void Ping(PingMessage msg_in);
+        void PingResponse(PingResponseMessage msg_in);
+        void OtherPeer(OtherPeerMessage msg_in);
     }
 
     public class SerializerMessageVisitor: IMessageVisitor
     {
-        public void handshake(HandshakeMessage msg_in)
+        public void Handshake(HandshakeMessage msg_in)
         {
-            myMessage = "HANDSH " + msg_in.getMyVersion() + " " + msg_in.getYourAddr() + " " + msg_in.getMyAddr();
+            myMessage = "HANDSH " + msg_in.GetMyVersion() + " " + msg_in.GetYourAddr() + " " + msg_in.GetMyAddr();
         }
 
-        public void handshakeResponse(HandshakeResponseMessage msg_in)
+        public void HandshakeResponse(HandshakeResponseMessage msg_in)
         {
-            myMessage = "HANDSHRESP " + msg_in.getMyVersion() + " " + msg_in.getMyAddr() + " " + msg_in.getYourAddr();
+            myMessage = "HANDSHRESP " + msg_in.GetMyVersion() + " " + msg_in.GetMyAddr() + " " + msg_in.GetYourAddr();
         }
 
-        public void ping(PingMessage msg_in)
+        public void Ping(PingMessage msg_in)
         {
-            myMessage = "PING " + msg_in.getText();
+            myMessage = "PING " + msg_in.GetText();
         }
 
-        public void pingResponse(PingResponseMessage msg_in)
+        public void PingResponse(PingResponseMessage msg_in)
         {
-            myMessage = "PINGRESP " + msg_in.getText();
+            myMessage = "PINGRESP " + msg_in.GetText();
         }
 
-        public void otherPeer(OtherPeerMessage msg_in)
+        public void OtherPeer(OtherPeerMessage msg_in)
         {
-            myMessage = "OPEER " + msg_in.getHost() + " " + msg_in.getPort().ToString();
+            myMessage = "OPEER " + msg_in.GetHost() + " " + msg_in.GetPort().ToString();
         }
 
-        public string getMessage() { return myMessage; }
+        public string GetMessage() { return myMessage; }
 
         private string myMessage;
     }
 
     public class MessageDeserializer
     {
-        public static BaseMessage parseMessage(string[] tokens)
+        public static BaseMessage ParseMessage(string[] tokens)
         {
+            //Console.Error.WriteLine($"ParseMessage {tokens.Length} '{tokens[0]}'");
             if (tokens.Length == 0)
             {
                 return null;
             }
-            if (tokens[0] == "HANDSH" && tokens.Length >= 4)
+            if (tokens[0].Equals("HANDSH") && tokens.Length >= 4)
             {
                 return new HandshakeMessage(tokens[1], tokens[2], tokens[3]);
             }
-            else if (tokens[0] == "HANDSHRESP" && tokens.Length >= 4)
+            else if (tokens[0].Equals("HANDSHRESP") && tokens.Length >= 4)
             {
                 return new HandshakeResponseMessage(tokens[1], tokens[2], tokens[3]);
             }
-            else if (tokens[0] == "PING" && tokens.Length >= 2)
+            else if (tokens[0].Equals("PING") && tokens.Length >= 2)
             {
                 return new PingMessage(tokens[1]);
             }
-            else if (tokens[0] == "PINGRESP" && tokens.Length >= 2)
+            else if (tokens[0].Equals("PINGRESP") && tokens.Length >= 2)
             {
                 return new PingResponseMessage(tokens[1]);
             }
-            else if (tokens[0] == "OPEER" && tokens.Length >= 3)
+            else if (tokens[0].Equals("OPEER") && tokens.Length >= 3)
             {
                 return new OtherPeerMessage(tokens[1], Int32.Parse(tokens[2]));
             }

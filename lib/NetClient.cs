@@ -1,9 +1,11 @@
 using System;
+using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 
 namespace tcpserver_csharp_sample
 {
-    class NetClientBase
+    public class NetClientBase
     {
         public enum State
         {
@@ -30,32 +32,34 @@ namespace tcpserver_csharp_sample
         public string GetPeerAddr() { return myPeerAddr; }
         public string GetCanonPeerAddr() { return myCanonPeerAddr; }
         public string GetNicePeerAddr() { return myCanonPeerAddr.Length > 0 ? myCanonPeerAddr : myPeerAddr; }
+        public void SetCanonPeerAddr(string peerAddr_in) { myCanonPeerAddr = peerAddr_in; }
 
-        public int SendMessage(BaseMessage msg_in)
+        public void SendMessage(BaseMessage msg_in)
         {
-            //cout << "NetClientBase::sendMessage " << msg_in.toString() << endl;
+            //Console.Error.WriteLine($"NetClientBase.SendMessage '{msg_in.ToString()}' {myState}");
             if (myState == State.Closing || myState == State.Closed)
             {
-                return 0;
+                throw new ApplicationException($"Invalid state {myState}");
             }
             myState = State.Sending;
             SerializerMessageVisitor visitor = new SerializerMessageVisitor();
-            msg_in.visit(visitor);
-            string msg = visitor.getMessage();
-            //cout << "sendMessage " << msg.length() << " '" << msg << "'" << endl;
+            msg_in.Visit(visitor);
+            string msg = visitor.GetMessage();
+            //Console.Error.WriteLine($"SendMessage {msg.Length} '{msg}'");
             msg += '\n'; // terminator
             // convert to byte array
             byte[] msgByte = System.Text.Encoding.ASCII.GetBytes(msg);
             try
             {
-                mySocket.Send(msgByte);
+                /*int sendRes = */mySocket.Send(msgByte);
+                //Console.Error.WriteLine($"sendRes {sendRes}");
             }
             catch(Exception ex)
             {
                 Console.Error.WriteLine($"Error when writing socket {ex.Message}");
                 Close();
             }
-            return 0;
+            return;
         }
 
         public void Close()
@@ -78,14 +82,58 @@ namespace tcpserver_csharp_sample
             myState = State.Closed;
         }
 
+        protected void DoRead()
+        {
+            // communicate with client, process one message
+            //Console.Error.WriteLine($"DoRead {myState}");
+            System.Diagnostics.Debug.Assert(myState == State.Accepted || myState == State.Sent || myState == State.Sending || myState == State.Receiving);
+            myState = State.Receiving;
+            //cout << "doRead " << endl; //(long)((IUvSocket*)this) << " " << (long)((NetClientBase*)this) << " " << (long)((NetClientIn*)this) << endl;
+            //myReceiveBuffer.clear();
+            byte[] buf = new byte[1024];
+            int readres = mySocket.Receive(buf);
+            //Console.Error.WriteLine($"DoRead readres {readres}");
+            if (readres > 0)
+            {
+                myReceiveBuffer += System.Text.Encoding.ASCII.GetString(buf, 0, readres);
+                DoProcessReceivedBuffer();
+            }
+        }
+
+        protected void DoProcessReceivedBuffer()
+        {
+            if (myReceiveBuffer.Length == 0)
+            {
+                return;
+            }
+            //Console.Error.WriteLine($"DoProcessReceivedBuffer {myReceiveBuffer.Length}");
+            int terminatorIdx;
+            while ((myReceiveBuffer.Length > 0) && ((terminatorIdx = myReceiveBuffer.IndexOf('\n')) >= 0))
+            {
+                string msg1 = myReceiveBuffer.Substring(0, terminatorIdx); // without the terminator
+                myReceiveBuffer = myReceiveBuffer.Substring(terminatorIdx + 1);
+                //cout << "Incoming message: from " << myPeerAddr << " '" << msg1 << "' " << myReceiveBuffer.length() << endl;
+                // split into tokens
+                string[] tokens = msg1.Split(' ');
+                BaseMessage msg = MessageDeserializer.ParseMessage(tokens);
+                if (msg == null)
+                {
+                    Console.Error.WriteLine($"Error: Unparseable message '{msg1}' {tokens.Length}");
+                    continue;
+                }
+                myState = State.Received;
+                System.Diagnostics.Debug.Assert(myApp != null);
+                myApp.MessageReceived(this, msg);
+            }
+        }
+
         protected IApp myApp;
         protected State myState;
         private string myPeerAddr;
         private string myCanonPeerAddr;
         private string myReceiveBuffer;
-        private Socket mySocket;
+        protected Socket mySocket;
     }
-}
 
 /*
 void NetClientBase::on_write(uv_write_t* req, int status) 
@@ -122,38 +170,6 @@ void NetClientBase::onWrite(uv_write_t* req, int status)
         return;
     }
     process();
-}
-
-void NetClientBase::doProcessReceivedBuffer()
-{
-    if (myReceiveBuffer.empty())
-    {
-        return;
-    }
-    int terminatorIdx;
-    while ((myReceiveBuffer.length() > 0) && ((terminatorIdx = myReceiveBuffer.find('\n')) >= 0))
-    {
-        string msg1 = myReceiveBuffer.substr(0, terminatorIdx); // without the terminator
-        myReceiveBuffer = myReceiveBuffer.substr(terminatorIdx + 1);
-        //cout << "Incoming message: from " << myPeerAddr << " '" << msg1 << "' " << myReceiveBuffer.length() << endl;
-        // split into tokens
-        std::vector<std::string> tokens; // Create vector to hold our words
-        {
-            std::string buf;                 // Have a buffer string
-            std::stringstream ss(msg1);       // Insert the string into a stream
-            while (ss >> buf) tokens.push_back(buf);
-        }
-        BaseMessage* msg = MessageDeserializer::parseMessage(tokens);
-        if (msg == nullptr)
-        {
-            cerr << "Error: Unparseable message '" << msg1 << "' " << tokens.size() << endl;
-            continue;
-        }
-        myState = State::Received;
-        assert(myApp != nullptr);
-        myApp->messageReceived(*this, *msg);
-        delete msg;
-    }
 }
 
 void NetClientBase::on_read(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf)
@@ -254,130 +270,134 @@ NetClientBase(app_in, peerAddr_in)
     setUvStream(socket_in);
     myState = State::Accepted;
 }
-
-
-NetClientOut::NetClientOut(BaseApp* app_in, string const & host_in, int port_in, int pingToSend_in) :
-NetClientBase(app_in, host_in + ":" + to_string(port_in)),
-myHost(host_in),
-myPort(port_in),
-myPingToSend(pingToSend_in),
-mySendCounter(0)
-{
-}
-
-void NetClientOut::on_connect(uv_connect_t* req, int status)
-{
-    //cout << "on_connect " << status << " " << req->type << endl;
-    IUvSocket* uvSocket = (IUvSocket*)req->data;
-    if (uvSocket == nullptr)
-    {
-        cerr << "Fatal error: uvSocket is nullptr " << endl;
-        //uv_close((uv_handle_t*)req->handle, NULL);
-        return;
-    }
-    uvSocket->onConnect(req, status);
-}
-
-void NetClientOut::onConnect(uv_connect_t* req, int status)
-{
-    //cout << "onConnect " << status << " " << req->type << endl;
-    if (status != 0) 
-    {
-        cerr << "connect error " << myHost << ":" << myPort << " " << status << " " << ::uv_strerror(status) << endl;
-        //uv_close((uv_handle_t*) req->handle, NULL);
-        return;
-    }
-
-    // obtain connected remote IP
-    string remoteHost;
-    int remotePort;
-    NetHandler::getRemoteAddressHostPort((uv_tcp_t*)req->handle, remoteHost, remotePort);
-    // obtain canonical endpoint: IP is connected remote IP, port is original port
-    string canonEp;
-    if (remoteHost != myHost)
-    {
-        canonEp = remoteHost + ":" + to_string(myPort);
-        cout << "Canonical endpoint of " << myHost << ":" << myPort << " is " << canonEp << endl;
-        setCanonPeerAddr(canonEp);
-    }
-
-    myState = State::Connected;
-    cout << "Connected to " << myHost << ":" << myPort << " (" << canonEp << " " << remoteHost << ":" << remotePort << ")" << endl;
-    process();
-}
-
-int NetClientOut::connect()
-{
-    //cout << "NetClientOut::connect " << myHost << ":" << myPort << endl;
-    if (myState >= State::Connected && myState < Closed)
-    {
-        cerr << "Fatal error: Connect on connected connection " << myState << endl;
-        return -1;
-    }
-    myState = State::Connecting;
-    mySendCounter = 0;
-    uv_tcp_t* socket = new uv_tcp_t();
-    ::uv_tcp_init(NetHandler::getUvLoop(), socket);
-    setUvStream(socket);
-
-    struct sockaddr_in dest;
-    ::uv_ip4_addr(myHost.c_str(), myPort, &dest);
-
-    uv_connect_t* connreq = new uv_connect_t();
-    connreq->data = (void*)dynamic_cast<IUvSocket*>(this);
-    //cout << "connecting..." << endl;
-    int res = ::uv_tcp_connect(connreq, socket, (const struct sockaddr*)&dest, NetClientOut::on_connect);
-    if (res)
-    {
-        cerr << "Error from uv_tcp_connect() " << res << " " << ::uv_err_name(res) << endl;
-        return res;
-    }
-    return 0;
-}
-
-void NetClientOut::process()
-{
-    //cout << "NetClientOut::process " << myState << endl;
-    switch (myState)
-    {
-        case State::Connected:
-            {
-                mySendCounter = 0;
-                HandshakeMessage msg("V01", getPeerAddr(), myApp->getName());
-                sendMessage(msg);
-            }
-            break;
-
-        case State::Sending:
-            ++mySendCounter;
-            doRead();
-            break;
-
-        case State::Sent:
-            doRead();
-            break;
-
-        case State::Receiving:
-            doRead();
-            break;
-
-        case State::Received:
-            if (mySendCounter >= 1 + myPingToSend)
-            {
-                close();
-            }
-            else if (mySendCounter >= 1)
-            {
-                PingMessage msg("Ping_from_" + myApp->getName() + "_to_" + getPeerAddr() + "_" + to_string(mySendCounter));
-                sendMessage(msg);
-            }
-            break;
-
-        default:
-            cerr << "Fatal error: unhandled state " << myState << endl;
-            assert(false);
-            break;
-    }
-    return;
-}
 */
+
+    public class NetClientOut: NetClientBase
+    {
+        private Thread myThread;
+        private string myHost;
+        private int myPort;
+        private int myPingToSend;
+        private int mySendCounter;
+
+        public NetClientOut(IApp app_in, string host_in, int port_in, int pingToSend_in)
+            : base(app_in, host_in + ":" + port_in.ToString())
+        {
+            myHost = host_in;
+            myPort = port_in;
+            myPingToSend = pingToSend_in;
+            mySendCounter = 0;
+        }
+
+        public void DoConnect()
+        {
+            try
+            {
+                if (myState >= State.Connected && myState < State.Closed)
+                {
+                    var msg = $"Fatal error: Connect on connected connection {myState}";
+                    Console.WriteLine(msg);
+                    throw new ApplicationException(msg);
+                }
+                myState = State.Connecting;
+                mySendCounter = 0;
+                mySocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                mySocket.Connect(myHost, myPort);
+                // obtain connected remote IP
+                //string remoteHost = socket.RemoteEndPoint
+                //int remotePort;
+                string canonEp = String.Empty;
+                string remoteHost = mySocket.RemoteEndPoint.ToString().Split(':')[0];
+                string remotePort = mySocket.RemoteEndPoint.ToString().Split(':')[1];
+                if (remoteHost != myHost)
+                {
+                    canonEp = remoteHost + ":" + myPort.ToString();
+                    Console.WriteLine($"Canonical endpoint of {myHost}:{myPort} is {canonEp}");
+                    SetCanonPeerAddr(canonEp);
+                }
+                //// obtain canonical endpoint: IP is connected remote IP, port is original port
+                //string canonEp;
+                //if (remoteHost != myHost)
+                //{
+                //    canonEp = remoteHost + ":" + to_string(myPort);
+                //    cout << "Canonical endpoint of " << myHost << ":" << myPort << " is " << canonEp << endl;
+                //    setCanonPeerAddr(canonEp);
+                //}
+
+                myState = State.Connected;
+                Console.WriteLine($"Connected to {myHost}:{myPort} ({canonEp} {remoteHost}:{remotePort})");
+
+                while (true)
+                {
+                    Process();
+                    if (myState == State.Closed)
+                    {
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error on out socket {ex.Message}");
+            }
+        }
+
+        public void Start()
+        {
+            myThread = new Thread(new ThreadStart(DoConnect));
+            myThread.Start();
+        }
+
+        public void Join()
+        {
+            myThread.Join();
+        }
+
+        // Perform state-dependent next action in the client state diagram
+        public virtual void Process()
+        {
+            //Console.Error.WriteLine($"Process {myState}");
+            switch (myState)
+            {
+                case State.Connected:
+                    {
+                        mySendCounter = 0;
+                        var msg = new HandshakeMessage("V01", GetPeerAddr(), myApp.GetName());
+                        SendMessage(msg);
+                    }
+                    break;
+
+                case State.Sending:
+                    ++mySendCounter;
+                    DoRead();
+                    break;
+
+                case State.Sent:
+                    DoRead();
+                    break;
+
+                case State.Receiving:
+                    DoRead();
+                    break;
+
+                case State.Received:
+                    if (mySendCounter >= 1 + myPingToSend)
+                    {
+                        Close();
+                    }
+                    else if (mySendCounter >= 1)
+                    {
+                        var msg = new PingMessage("Ping_from_" + myApp.GetName() + "_to_" + GetPeerAddr() + "_" + mySendCounter.ToString());
+                        SendMessage(msg);
+                    }
+                    break;
+
+                default:
+                    Console.Error.WriteLine($"Fatal error: unhandled state {myState}");
+                    System.Diagnostics.Debug.Assert(false);
+                    break;
+            }
+            return;
+        }
+    }
+}
