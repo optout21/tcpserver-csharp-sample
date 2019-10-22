@@ -1,0 +1,8 @@
+# Build files
+*.dll
+client/bin
+client/obj
+lib/bin
+lib/obj
+server/bin
+server/obj

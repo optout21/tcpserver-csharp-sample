@@ -9,11 +9,12 @@ A sample networking implementation, in C#, including sample node implementation.
 
     git clone https://github.com/catenocrypt/tcpserver-csharp-sample.git
     cd tcpserver-csharp-sample
-    dotnet run
+    dotnet build
+    dotnet run -p server
 
 From another console:
 
-    ./tcp-libuv-client
+    dotnet run -p client
 
 ## Notes
 
